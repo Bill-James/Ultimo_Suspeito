@@ -53,6 +53,7 @@ details ul{padding-left:20px}
 .res.g{color:var(--manila)}
 .res.p{color:#ffb3a8}
 .hist{padding-left:22px;display:grid;gap:8px}
+.rodape{display:grid;gap:10px;margin-top:10px;padding-top:18px;border-top:1px dashed var(--mesa2)}
 </style>
 </head>
 <body>
@@ -61,6 +62,11 @@ details ul{padding-left:20px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 const CONFIG = { databaseURL: 'https://ultimo-suspeito-d8153-default-rtdb.firebaseio.com' }
+
+if (!CONFIG.databaseURL.startsWith('https://')) {
+  document.getElementById('app').innerHTML = '<h1>Falta ligar o Firebase</h1><p class=sub>Abre este ficheiro num editor de texto e troca COLA_AQUI_O_DATABASE_URL pelo endereço do teu Realtime Database.</p>'
+  throw new Error('databaseURL em falta')
+}
 
 const CASOS = [
   {
@@ -198,6 +204,8 @@ const avancar = () => {
   ref().update({ fase: f, fim: FASES[f].min ? Date.now() + FASES[f].min * 60000 : null })
 }
 
+const fora = () => { localStorage.removeItem('sala'); location.reload() }
+
 const AC = {
   criar: () => {
     const n = val('nome')
@@ -216,7 +224,8 @@ const AC = {
   ver: () => { S.ver = !S.ver; render() },
   votar: d => ref(`votos/${pid}`).set(d.id),
   reiniciar: () => ref().update({ fase: 'lobby', caso: null, cartas: null, verdade: null, votos: null, fim: null }),
-  sair: () => { localStorage.removeItem('sala'); location.reload() }
+  sair: () => (S.fase === 'lobby' ? ref(`jogadores/${pid}`).remove() : Promise.resolve()).finally(fora),
+  encerrar: () => confirm('Encerrar a sala para todos?') && ref().remove().finally(fora)
 }
 app.onclick = e => { const a = e.target.closest('[data-a]'); if (a) AC[a.dataset.a](a.dataset) }
 
@@ -236,6 +245,8 @@ const votacao = () => `
   ${jogadores().filter(j => j.id !== pid).map(j => `<button class="voto ${S.votos?.[pid] === j.id ? 'on' : ''}" data-a=votar data-id="${j.id}">${esc(j.nome)}</button>`).join('')}
   <p class=sub>Votaram ${Object.keys(S.votos || {}).length} de ${jogadores().length}.</p>`
 
+const rodape = (sair = 'Sair da sala') => `<div class=rodape>${souHost() ? '<button class=sec data-a=encerrar>Encerrar sala</button>' : `<button class=sec data-a=sair>${sair}</button>`}</div>`
+
 const V = {
   carregar: () => '<p class=sub>A ligar à sala…</p>',
   fim: () => '<h2>A sala já não existe</h2><button data-a=sair>Voltar ao início</button>',
@@ -254,7 +265,8 @@ const V = {
       <p class=sub>Partilha o código na chamada. Jogam entre 5 e 8 pessoas.</p>
       <ul class=lista>${js.map(j => `<li>${esc(j.nome)}${j.id === S.host ? '<span>anfitrião</span>' : ''}</li>`).join('')}</ul>
       ${souHost() ? `<button data-a=iniciar ${js.length >= 5 && js.length <= 8 ? '' : 'disabled'}>Começar o jogo (${js.length}/8)</button>` : '<p class=sub>À espera do anfitrião.</p>'}
-      <p class=erro>${esc(S.erro)}</p>`
+      <p class=erro>${esc(S.erro)}</p>
+      ${rodape()}`
   },
   revelacao: () => {
     const v = S.verdade, c = CASOS.find(x => x.id === S.caso)
@@ -272,7 +284,8 @@ const V = {
       <ul class=lista>${jogadores().map(j => `<li>${esc(j.nome)}<span>${n[j.id] || 0}</span></li>`).join('')}</ul>
       <h3>O que realmente aconteceu</h3>
       <ol class=hist>${v.linha.map(l => `<li>${esc(l)}</li>`).join('')}</ol>
-      ${souHost() ? '<button data-a=reiniciar>Jogar outra vez</button>' : ''}`
+      ${souHost() ? '<button data-a=reiniciar>Jogar outra vez</button>' : ''}
+      ${rodape('Novo jogo')}`
   }
 }
 
@@ -290,7 +303,8 @@ const jogo = () => {
     </details>
     ${S.carta ? carta(S.carta) : ''}
     ${S.fase === 'votacao' ? votacao() : ''}
-    ${souHost() ? `<button class=sec data-a=avancar>${S.fase === 'votacao' ? 'Revelar o culpado' : 'Passar à fase seguinte'}</button>` : ''}`
+    ${souHost() ? `<button class=sec data-a=avancar>${S.fase === 'votacao' ? 'Revelar o culpado' : 'Passar à fase seguinte'}</button>` : ''}
+    ${rodape()}`
 }
 
 const render = () => {
