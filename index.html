@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Último Suspeito</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--mesa:#1d3a34;--mesa2:#274a42;--manila:#dcc38e;--papel:#f2ead6;--tinta:#1f2540;--carimbo:#b3262b;--mudo:#a9bdb4}
+*{box-sizing:border-box;margin:0}
+body{background:var(--mesa);color:var(--papel);font:18px/1.55 Spectral,Georgia,serif;min-height:100vh}
+main{max-width:520px;margin:auto;padding:28px 18px 72px;display:grid;gap:18px}
+h1,h2,h3,button{font-family:'Special Elite','Courier New',monospace;font-weight:400}
+h1{font-size:2.7rem;line-height:1.02;color:var(--manila)}
+h2{font-size:1.5rem;line-height:1.2;color:var(--manila)}
+h3{font-size:1rem;color:var(--mudo)}
+.sub{color:var(--mudo)}
+.erro{color:#ffb3a8}
+input,button{font:inherit;border-radius:2px}
+input{width:100%;padding:12px 14px;background:var(--papel);color:var(--tinta);border:0;border-bottom:3px solid var(--manila)}
+:focus-visible{outline:3px solid var(--papel);outline-offset:2px}
+button{width:100%;padding:13px 16px;background:var(--manila);color:var(--tinta);border:0;font-size:1.05rem;cursor:pointer}
+button.sec{background:transparent;color:var(--manila);border:1px solid var(--manila)}
+button:disabled{opacity:.4;cursor:default}
+button:active:not(:disabled){transform:translateY(1px)}
+.linha{display:flex;gap:10px}
+.linha input{text-transform:uppercase;letter-spacing:.3em;text-align:center}
+.linha button{width:auto;white-space:nowrap}
+.codigo{font:3.6rem/1 'Special Elite',monospace;letter-spacing:.28em;text-align:center;padding:22px 0 22px .28em;background:var(--manila);color:var(--tinta);transform:rotate(-1.5deg);box-shadow:0 8px 24px #0006}
+.lista{list-style:none;padding:0;display:grid;gap:8px}
+.lista li{padding:10px 14px;background:var(--mesa2);border-left:4px solid var(--manila);display:flex;justify-content:space-between}
+.topo{display:flex;justify-content:space-between;align-items:baseline}
+#tempo{font:1.7rem 'Special Elite',monospace}
+.dica{padding:12px 14px;background:var(--mesa2);border-left:4px solid var(--manila)}
+details{background:var(--mesa2);padding:12px 14px}
+summary{cursor:pointer;font-family:'Special Elite',monospace;color:var(--manila)}
+details p,details li{margin-top:8px}
+details ul{padding-left:20px}
+.carta{position:relative;display:grid;gap:12px;padding:22px 18px;background:var(--papel);color:var(--tinta);box-shadow:0 12px 30px #0007}
+.carta h3{color:var(--tinta);opacity:.6}
+.carta .cargo{font:1.6rem 'Special Elite',monospace;padding-right:110px}
+.carta button{background:var(--tinta);color:var(--papel)}
+.selo{position:absolute;top:16px;right:14px;padding:2px 10px;font:1.15rem 'Special Elite',monospace;border:3px solid;transform:rotate(-8deg);animation:carimbar .35s cubic-bezier(.2,1.6,.4,1) both}
+.selo.c{color:var(--carimbo)}
+.selo.i{color:var(--tinta)}
+@keyframes carimbar{from{transform:scale(2.6) rotate(-22deg);opacity:0}to{transform:scale(1) rotate(-8deg);opacity:1}}
+@media (prefers-reduced-motion:reduce){.selo{animation:none}}
+.voto{background:var(--mesa2);color:var(--papel);border:1px solid var(--mesa2);text-align:left}
+.voto.on{background:var(--manila);color:var(--tinta)}
+.res{padding:18px;border:3px solid;font:1.7rem/1.2 'Special Elite',monospace;transform:rotate(-1deg)}
+.res.g{color:var(--manila)}
+.res.p{color:#ffb3a8}
+.hist{padding-left:22px;display:grid;gap:8px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const CONFIG = { databaseURL: 'COLA_AQUI_O_DATABASE_URL' }
+
+const CASOS = [
+  {
+    id: 'hotel',
+    titulo: 'Hotel Imperial, 23:47',
+    abertura: 'Festa privada no Hotel Imperial. Às 23:31 as luzes apagam-se. Às 23:47 voltam e o colar de esmeraldas desapareceu do cofre. A porta do andar estava trancada e só os convidados estavam lá. Um deles está a mentir.',
+    pistas: ['Uma luva preta foi encontrada junto ao cofre.', 'A porta do andar estava trancada por dentro.', 'A câmara do corredor esteve desligada durante o apagão.'],
+    linha: [
+      '23:25 — {jornalista} vai à varanda atender uma chamada.',
+      '23:30 — {seguranca} deixa a entrada para atender o telemóvel e vê {medica} entrar no corredor.',
+      '23:31 — Apagão. {medica} abre o cofre e leva o colar.',
+      '23:35 — {chef} vai à cozinha buscar gelo.',
+      '23:40 — {medica} esconde o colar num vaso do corredor.',
+      '23:47 — As luzes voltam.'
+    ],
+    base: [
+      { id: 'medica', cargo: 'Médica', culpado: true, alibi: 'Estive na sala a conversar com {jornalista} o tempo todo.', pergunta: '{seguranca}, não devias estar na entrada?', segredo: 'Roubaste o colar às 23:31 e escondeste-o num vaso do corredor. Aguenta sem te contradizeres e desvia as suspeitas para outros.' },
+      { id: 'jornalista', cargo: 'Jornalista', alibi: 'Estive na varanda das 23:25 às 23:45.', pergunta: '{medica}, a que horas saíste da sala?', segredo: 'Estavas ao telefone com uma fonte, por isso não estavas com {medica}. Não queres dizer com quem falavas.' },
+      { id: 'seguranca', cargo: 'Segurança', alibi: 'Fiquei na entrada o tempo todo.', pergunta: '{empresaria}, viste alguém passar no corredor?', segredo: 'Deixaste a entrada às 23:30 para atender o telemóvel e viste {medica} entrar no corredor. Tens vergonha de ter abandonado o posto.' },
+      { id: 'empresaria', cargo: 'Empresária', alibi: 'Estive no bar com {chef} até às 23:35.', pergunta: '{medica}, onde deixaste as luvas?', segredo: 'No início da festa {medica} usava luvas pretas. Agora já não as tem.' },
+      { id: 'chef', cargo: 'Chef', alibi: 'Estive no bar com {empresaria} e fui à cozinha às 23:35 buscar gelo.', pergunta: '{seguranca}, porque é que a entrada estava vazia?', segredo: 'Durante o apagão ouviste saltos no corredor.' }
+    ],
+    extras: [
+      { id: 'gerente', cargo: 'Gerente do hotel', alibi: 'Estive no escritório a fechar contas.', pergunta: '{seguranca}, quem tem a chave do cofre além de ti?', segredo: 'Tens a chave do cofre, mas estava na tua gaveta. Ninguém te viu no escritório e não tens como provar.' },
+      { id: 'pianista', cargo: 'Pianista', alibi: 'Toquei até ao apagão e fiquei sentado no escuro.', pergunta: '{jornalista}, porque é que não voltaste da varanda?', segredo: 'Durante o apagão viste uma sombra junto ao vaso do corredor. Não sabes quem era.' },
+      { id: 'barman', cargo: 'Barman', alibi: 'Estive no bar a noite toda.', pergunta: '{empresaria}, quantas bebidas pediste?', segredo: 'Viste {chef} sair do bar às 23:35 com um balde de gelo.' }
+    ]
+  },
+  {
+    id: 'iate',
+    titulo: 'Clube Náutico, 22:00',
+    abertura: 'Noite de entrega de prémios no Clube Náutico. Enquanto o comandante fazia o discurso no deck, o troféu da regata desapareceu da vitrine do salão. Os portões estavam fechados e ninguém saiu do clube. O ladrão continua entre vocês.',
+    pistas: ['A vitrine foi aberta com chave, não foi partida.', 'Os portões do clube estavam fechados.', 'O motor do barco Estrela estava desmontado no cais.'],
+    linha: [
+      '21:20 — {mecanico} pergunta ao {barman} onde fica a porta lateral do salão.',
+      '21:30 — {comandante} começa o discurso no deck.',
+      '21:35 — {velejadora} vai ao cais ver o seu barco.',
+      '21:38 — {mecanico} tira a chave sobressalente da vitrine do quadro de chaves da marina.',
+      '21:40 — {mecanico} entra no salão pela porta lateral e {fotografa} apanha-o numa foto, de costas.',
+      '21:44 — {mecanico} abre a vitrine e leva o troféu.',
+      '21:50 — {mecanico} esconde o troféu dentro do motor do Estrela.',
+      '21:55 — {velejadora} volta ao deck. O desaparecimento é descoberto às 22:00.'
+    ],
+    base: [
+      { id: 'mecanico', cargo: 'Mecânico', culpado: true, alibi: 'Estive no cais a arranjar o motor do Estrela até às 22:00.', pergunta: '{comandante}, quem tinha acesso à chave da vitrine?', segredo: 'Roubaste o troféu às 21:44 e escondeste-o no motor do Estrela. Aguenta sem te contradizeres e desvia as suspeitas para outros.' },
+      { id: 'comandante', cargo: 'Comandante', alibi: 'Fiz o discurso no deck e não saí de lá.', pergunta: '{mecanico}, o motor do Estrela estava mesmo avariado?', segredo: 'Às 21:30 a chave sobressalente da vitrine estava no quadro da marina. Às 21:55 já não estava.' },
+      { id: 'fotografa', cargo: 'Fotógrafa', alibi: 'Fotografei o discurso a partir do deck.', pergunta: '{barman}, viste quem passou pelo salão?', segredo: 'Numa foto das 21:40 vê-se ao fundo, de costas, alguém de fato-macaco azul junto à porta lateral do salão.' },
+      { id: 'barman', cargo: 'Barman', alibi: 'Servi bebidas no deck a noite toda.', pergunta: '{velejadora}, porque saíste do deck?', segredo: 'Às 21:20 o mecânico perguntou-te onde ficava a porta lateral do salão.' },
+      { id: 'velejadora', cargo: 'Velejadora', alibi: 'Fui ao cais ver o meu barco às 21:35 e voltei ao deck às 21:55.', pergunta: '{mecanico}, estavas mesmo no Estrela às 21:40?', segredo: 'Ao passar no cais às 21:40 o Estrela estava sem ninguém e com o motor desmontado. Como estiveste fora do deck, podem suspeitar de ti.' }
+    ],
+    extras: [
+      { id: 'presidente', cargo: 'Presidente do clube', alibi: 'Estive ao lado do comandante no deck.', pergunta: '{comandante}, quem guarda as chaves da marina?', segredo: 'Só três pessoas mexem no quadro de chaves: tu, o comandante e o mecânico.' },
+      { id: 'cozinheiro', cargo: 'Cozinheiro', alibi: 'Estive na cozinha a preparar o buffet.', pergunta: '{barman}, quem foi ao balcão antes do discurso?', segredo: 'Ouviste passos junto à porta lateral do salão por volta das 21:40.' },
+      { id: 'convidado', cargo: 'Convidado', alibi: 'Estive no deck a ouvir o discurso.', pergunta: '{fotografa}, saí em alguma foto?', segredo: 'Saíste do deck às 21:42 para ir à casa de banho e tens vergonha de o dizer.' }
+    ]
+  }
+]
+
+const FASES = {
+  cena: { t: 'A cena', min: 2, dica: 'Lê o caso e a tua carta em silêncio. Ainda ninguém fala.' },
+  alibis: { t: 'Os álibis', min: 5, dica: 'Um de cada vez, diz o teu álibi em voz alta. Só o álibi.' },
+  perguntas: { t: 'As perguntas', min: 8, dica: 'Faz a tua pergunta e responde às que te fizerem.' },
+  livre: { t: 'Debate livre', min: 8, dica: 'Confrontem versões. Quem tem um segredo decide se o revela.' },
+  votacao: { t: 'Votação', min: 2, dica: 'Escolhe o culpado. Não podes votar em ti.' },
+  revelacao: { t: 'Revelação' }
+}
+const ORDEM = ['cena', 'alibis', 'perguntas', 'livre', 'votacao', 'revelacao']
+
+firebase.initializeApp(CONFIG)
+const db = firebase.database()
+const app = document.getElementById('app')
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
+const embaralhar = a => [...a].sort(() => Math.random() - .5)
+const fmt = ms => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+const val = id => document.getElementById(id).value.trim()
+const pid = localStorage.pid ??= Math.random().toString(36).slice(2)
+const S = { sala: localStorage.sala || '', ver: false }
+const ref = (p = '') => db.ref(`salas/${S.sala}/${p}`)
+const nome = id => S.jogadores?.[id]?.nome ?? '?'
+const jogadores = () => Object.entries(S.jogadores || {}).map(([id, j]) => ({ id, ...j }))
+const souHost = () => S.host === pid
+const erro = m => { S.erro = m; render() }
+const ouvir = (p, k = p) => ref(p).on('value', s => { S[k] = s.val(); render() })
+
+const entrar = sala => {
+  S.sala = localStorage.sala = sala
+  S.erro = ''
+  ;['host', 'fase', 'fim', 'caso', 'jogadores', 'votos'].forEach(p => ouvir(p))
+  ouvir(`cartas/${pid}`, 'carta')
+  render()
+}
+
+const criar = async n => {
+  for (;;) {
+    const c = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.random() * 24 | 0]).join('')
+    const r = db.ref(`salas/${c}`)
+    if ((await r.child('fase').get()).exists()) continue
+    await r.set({ host: pid, fase: 'lobby', jogadores: { [pid]: { nome: n } } })
+    return entrar(c)
+  }
+}
+
+const juntar = async (c, n) => {
+  const r = db.ref(`salas/${c}`)
+  const [f, j] = await Promise.all([r.child('fase').get(), r.child('jogadores').get()])
+  const jog = j.val() || {}
+  if (!f.exists()) return erro('Sala não encontrada. Confirma o código.')
+  if (!jog[pid] && f.val() !== 'lobby') return erro('O jogo já começou.')
+  if (!jog[pid] && Object.keys(jog).length >= 8) return erro('A sala está cheia (máximo 8).')
+  await r.child(`jogadores/${pid}`).set({ nome: n })
+  entrar(c)
+}
+
+const iniciar = () => {
+  const ids = Object.keys(S.jogadores || {})
+  if (ids.length < 5 || ids.length > 8) return erro('São precisos entre 5 e 8 jogadores.')
+  const caso = embaralhar(CASOS)[0]
+  const papeis = embaralhar([...caso.base, ...embaralhar(caso.extras).slice(0, ids.length - caso.base.length)])
+  const dono = {}
+  embaralhar(ids).forEach((id, i) => dono[papeis[i].id] = id)
+  const sub = t => t.replace(/\{(\w+)\}/g, (_, k) => nome(dono[k]))
+  const cartas = Object.fromEntries(papeis.map(p => [dono[p.id], { cargo: p.cargo, culpado: !!p.culpado, alibi: sub(p.alibi), pergunta: sub(p.pergunta), segredo: sub(p.segredo) }]))
+  ref().update({
+    caso: caso.id,
+    cartas,
+    verdade: { culpado: dono[caso.base.find(p => p.culpado).id], linha: caso.linha.map(sub) },
+    votos: null,
+    fase: 'cena',
+    fim: Date.now() + FASES.cena.min * 60000
+  })
+}
+
+const avancar = () => {
+  const f = ORDEM[ORDEM.indexOf(S.fase) + 1]
+  ref().update({ fase: f, fim: FASES[f].min ? Date.now() + FASES[f].min * 60000 : null })
+}
+
+const AC = {
+  criar: () => {
+    const n = val('nome')
+    if (!n) return erro('Escreve o teu nome.')
+    localStorage.nome = n
+    criar(n).catch(() => erro('Sem ligação à base de dados. Confirma o databaseURL.'))
+  },
+  juntar: () => {
+    const n = val('nome'), c = val('cod').toUpperCase()
+    if (!n || c.length < 4) return erro('Escreve o teu nome e o código de 4 letras.')
+    localStorage.nome = n
+    juntar(c, n).catch(() => erro('Sem ligação à base de dados. Confirma o databaseURL.'))
+  },
+  iniciar,
+  avancar,
+  ver: () => { S.ver = !S.ver; render() },
+  votar: d => ref(`votos/${pid}`).set(d.id),
+  reiniciar: () => ref().update({ fase: 'lobby', caso: null, cartas: null, verdade: null, votos: null, fim: null }),
+  sair: () => { localStorage.removeItem('sala'); location.reload() }
+}
+app.onclick = e => { const a = e.target.closest('[data-a]'); if (a) AC[a.dataset.a](a.dataset) }
+
+const carta = k => S.ver
+  ? `<div class=carta>
+      <span class="selo ${k.culpado ? 'c' : 'i'}">${k.culpado ? 'CULPADO' : 'INOCENTE'}</span>
+      <h3>Tu és</h3><p class=cargo>${esc(k.cargo)}</p>
+      <h3>O teu álibi</h3><p>${esc(k.alibi)}</p>
+      <h3>A tua pergunta</h3><p>${esc(k.pergunta)}</p>
+      <h3>O que sabes</h3><p>${esc(k.segredo)}</p>
+      <button data-a=ver>Esconder a carta</button>
+    </div>`
+  : '<button data-a=ver>Ver a minha carta</button>'
+
+const votacao = () => `
+  <h3>Quem é o culpado?</h3>
+  ${jogadores().filter(j => j.id !== pid).map(j => `<button class="voto ${S.votos?.[pid] === j.id ? 'on' : ''}" data-a=votar data-id="${j.id}">${esc(j.nome)}</button>`).join('')}
+  <p class=sub>Votaram ${Object.keys(S.votos || {}).length} de ${jogadores().length}.</p>`
+
+const V = {
+  carregar: () => '<p class=sub>A ligar à sala…</p>',
+  fim: () => '<h2>A sala já não existe</h2><button data-a=sair>Voltar ao início</button>',
+  home: () => `
+    <h1>Último<br>Suspeito</h1>
+    <p class=sub>Um crime, um culpado entre vocês, e cada um sabe só uma parte da verdade.</p>
+    <input id=nome maxlength=14 placeholder="O teu nome" autocomplete=off value="${esc(localStorage.nome || '')}">
+    <button data-a=criar>Criar sala</button>
+    <div class=linha><input id=cod maxlength=4 placeholder=CÓDIGO autocomplete=off><button class=sec data-a=juntar>Entrar</button></div>
+    <p class=erro>${esc(S.erro)}</p>`,
+  lobby: () => {
+    const js = jogadores()
+    return `
+      <h3>Código da sala</h3>
+      <div class=codigo>${esc(S.sala)}</div>
+      <p class=sub>Partilha o código na chamada. Jogam entre 5 e 8 pessoas.</p>
+      <ul class=lista>${js.map(j => `<li>${esc(j.nome)}${j.id === S.host ? '<span>anfitrião</span>' : ''}</li>`).join('')}</ul>
+      ${souHost() ? `<button data-a=iniciar ${js.length >= 5 && js.length <= 8 ? '' : 'disabled'}>Começar o jogo (${js.length}/8)</button>` : '<p class=sub>À espera do anfitrião.</p>'}
+      <p class=erro>${esc(S.erro)}</p>`
+  },
+  revelacao: () => {
+    const v = S.verdade, c = CASOS.find(x => x.id === S.caso)
+    if (!v || !c) return V.carregar()
+    const n = {}
+    Object.values(S.votos || {}).forEach(a => n[a] = (n[a] || 0) + 1)
+    const max = Math.max(0, ...Object.values(n))
+    const topo = Object.keys(n).filter(a => n[a] === max)
+    const ganharam = topo.length === 1 && topo[0] === v.culpado
+    return `
+      <div class="res ${ganharam ? 'g' : 'p'}">${ganharam ? 'Apanharam o culpado!' : 'O culpado escapou!'}</div>
+      <h3>O culpado era</h3>
+      <h2>${esc(nome(v.culpado))}, ${esc(c.base.find(p => p.culpado).cargo)}</h2>
+      <h3>Votos</h3>
+      <ul class=lista>${jogadores().map(j => `<li>${esc(j.nome)}<span>${n[j.id] || 0}</span></li>`).join('')}</ul>
+      <h3>O que realmente aconteceu</h3>
+      <ol class=hist>${v.linha.map(l => `<li>${esc(l)}</li>`).join('')}</ol>
+      ${souHost() ? '<button data-a=reiniciar>Jogar outra vez</button>' : ''}`
+  }
+}
+
+const jogo = () => {
+  const c = CASOS.find(x => x.id === S.caso), f = FASES[S.fase]
+  if (!c || !f) return V.carregar()
+  return `
+    <div class=topo><h2>${f.t}</h2>${S.fim ? `<span id=tempo>${fmt(S.fim - Date.now())}</span>` : ''}</div>
+    <p class=dica>${f.dica}</p>
+    <details ${S.fase === 'cena' ? 'open' : ''}>
+      <summary>${esc(c.titulo)}</summary>
+      <p>${esc(c.abertura)}</p>
+      <h3 style="margin-top:14px">Pistas à vista</h3>
+      <ul>${c.pistas.map(p => `<li>${esc(p)}</li>`).join('')}</ul>
+    </details>
+    ${S.carta ? carta(S.carta) : ''}
+    ${S.fase === 'votacao' ? votacao() : ''}
+    ${souHost() ? `<button class=sec data-a=avancar>${S.fase === 'votacao' ? 'Revelar o culpado' : 'Passar à fase seguinte'}</button>` : ''}`
+}
+
+const render = () => {
+  const f = !S.sala ? 'home' : S.fase === undefined ? 'carregar' : S.fase === null ? 'fim' : S.fase
+  if (f === 'revelacao' && !S.v) { S.v = 1; ouvir('verdade') }
+  app.innerHTML = (V[f] || jogo)()
+}
+
+setInterval(() => { const e = document.getElementById('tempo'); if (e && S.fim) e.textContent = fmt(S.fim - Date.now()) }, 500)
+S.sala ? entrar(S.sala) : render()
+</script>
+</body>
+</html>
